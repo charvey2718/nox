@@ -23,6 +23,12 @@ python nox.py infer input_image.png
 
 This will create two files, `starry.png` and `starless.png`: `starry.png` is a copy of the input image, and `starless.png` is the result of star removal. Note that the input and output formats do not necessarily need to be png.
 
+The [`inference examples`](/inference%20examples/) folder contains some starry and starless examples. Here are a couple of starry and starless pairs from that folder (see the folder for more):
+
+![Eagle Nebula M16 19 August 2022.png](/inference%20examples/Eagle%20Nebula%20M16%2019%20August%202022.png) ![Eagle Nebula starless color.png](inference%20examples/Eagle%20Nebula%20starless%20color.png)
+
+![Tadpoles IC 410 5 November 2021.png](/inference%20examples/Tadpoles%20IC%20410%205%20November%202021.png) ![Tadpoles starless color.png](inference%20examples/Tadpoles%20starless%20color.png)
+
 # Train a version of nox
 
 ## Background images
@@ -45,17 +51,11 @@ Clearly, these datasets are not related to astrophotography in any way. Neverthe
 python GenerateStars.py
 ```
 
-The `nox data` folder contains some example training pairs:
-
-![x4.png](/nox%20data/x4.png) ![y4.png](/nox%20data/y4.png)
+The [`nox data`](/nox%20data/) folder contains some example training pairs. Here are a couple of training pairs from that folder (see the folder for more).
 
 ![x6.png](/nox%20data/x6.png) ![y6.png](/nox%20data/y6.png)
 
 ![x13.png](/nox%20data/x13.png) ![y13.png](/nox%20data/y13.png)
-
-![x39.png](/nox%20data/x39.png) ![y39.png](/nox%20data/y39.png)
-
-![x55.png](/nox%20data/x55.png) ![y55.png](/nox%20data/y55.png)
 
 ## Training
 
