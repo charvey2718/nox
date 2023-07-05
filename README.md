@@ -1,2 +1,11 @@
 # nox
-nox is a neural network that removes stars from astrophotographs
+nox is a convolutional encoder-decoder residual neural network to remove stars from astrophotographs. It uses almost the same architecture as [StarNet](https://github.com/nekitmm/starnet) and was trained using the same training technique with adversarial and perceptual losses. The essential difference between StarNet and nox is that nox was trained on a synthetic dataset with artificial but physically realistic stars superimposed onto background images to create training pairs. In contrast, the creator of StarNet created the dataset by manually removing stars from real astrophotographs. nox therefore produces different results to StarNet because it has seen different data during training. I also hope that my approach might provide better generalization to diverse optical systems as the training data includes a wide range of star resolution, FWHM, noise (gain), midtones transfer stretch, diffraction spikes, atmospheric conditions (blur and asymmetry), star color, color fringing, etc. That however remains to be proved by the experience of users!
+
+I am providing the full code here to generate your own training datasets, to train and save a version of nox, and to infer your own images. Most of the code was written in Python. Generating the dataset relies on the [Astropy](https://www.astropy.org/) and [Photutils](https://photutils.readthedocs.io/en/stable/api/photutils.datasets.make_model_sources_image.html) Python libraries. I used Tensorflow for machine learning.
+
+## Datasets
+I added artificial stars to images from the [SIDD](https://www.eecs.yorku.ca/~kamel/sidd/dataset.php) and [RENOIR](https://ani.stat.fsu.edu/~abarbu/Renoir.html) datasets (which were originally intended for noise reduction).
+
+1. Download the sRGB images only from "SIDD-Small Dataset". The "Data" directory contains 160 noisy and ground truth image pairs. We are obviously not interested in these pairings, but the different noise levels are useful for generalization, and so all 320 images are included as background images.
+
+1. Download the "aligned" datasets for the three different cameras, which contains 120 noisy and ground truth image pairs. Again, all these images are included in the list of background images.
