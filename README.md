@@ -9,7 +9,7 @@ An easy-to-use standalone compiled version (written in C++) is in progress. I am
 
 # Inference - Use provided weights to remove stars from images
 
-1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
+1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend using a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Copy the `generator_color.h5` and `generator_grayscale.h5` weights files into the same directory as `nox.py`.
 1. Set the desired global parameters on lines 26 to 44. These variables cover settings for both inference and training. For inference the relevant ones are:
    - Set `n_channels` to `1` to process grayscale images, or to convert color images to grayscale before processing. Otherwise leave `n_channels` as `3`.
@@ -35,7 +35,7 @@ I added artificial stars to images from the [SIDD](https://www.eecs.yorku.ca/~ka
 
 1. Ensure that the arguments to the `get_images_paths` function on lines 299 (or 300) point to the downloaded SIDD and RENOIR datasets respectively.
 1. Set the desired global parameters on lines 16 - 21. In particular `cpus` the number of CPUs to use (I used 10), and `imcount` the number of images to generate (I generated 5000). The performance of the resulting network is closely related to the number of training images. Leave `color` as `True`, even if you want to train a grayscale net as the grayscale conversion happens during training. This means you only need to generate one dataset.
-1. Ensure you have installed all the relevant packages as per the imports in `GenerateStars.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
+1. Ensure you have installed all the relevant packages as per the imports in `GenerateStars.py`. I recommend using a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Open a command prompt and `cd` to the directory containing `GenerateStars.py`. Before running, consider opening a [`screen`](https://www.gnu.org/software/screen/) which will allow you to detach and reattach your terminal window during the long execution time, particularly if you will run it remotely.
 1. Run
 
@@ -45,7 +45,7 @@ python GenerateStars.py
 
 ## Training
 
-1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
+1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend using a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Set the desired global parameters on lines 26 to 44. These variables cover settings for both inference and training. For training the relevant ones are:
    - `epochs` sets the maximum number of training epochs. I prefer to set this to a large number (`1500`) and kill training with `Ctrl-C` when ready.
    - Set `n_channels` to `1` to train grayscale weights, or to `3` to train color weights. Both use the same color dataset, and conversion to grayscale happens if required during training.
