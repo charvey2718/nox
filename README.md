@@ -63,4 +63,4 @@ python GenerateStars.py
 python nox.py train
 ```
 
-1. Note that model training can be resumed (including from the same optimizer state) by reissuing the command above.
+Note that model training can be resumed (including from the same optimizer state) from the files saved every `save_freq` epochs by reissuing the command above.
