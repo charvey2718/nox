@@ -46,8 +46,16 @@ python GenerateStars.py
 ```
 
 The `nox data` folder contains some example training pairs:
-![x4.png](/nox data/x4.png) ![x4.png](/nox data/y4.png)
-![x6.png](/nox data/x6.png) ![x6.png](/nox data/y6.png)
+
+![x4.png](/nox%20data/x4.png) ![y4.png](/nox%20data/y4.png)
+
+![x6.png](/nox%20data/x6.png) ![y6.png](/nox%20data/y6.png)
+
+![x13.png](/nox%20data/x13.png) ![y13.png](/nox%20data/y13.png)
+
+![x39.png](/nox%20data/x39.png) ![y39.png](/nox%20data/y39.png)
+
+![x55.png](/nox%20data/x55.png) ![y55.png](/nox%20data/y55.png)
 
 ## Training
 
