@@ -64,3 +64,8 @@ python nox.py train
 ```
 
 Note that model training can be resumed (including from the same optimizer state) from the files saved every `save_freq` epochs by reissuing the command above.
+
+# License
+
+My code is made available under the MIT License, detailed in the LICENSE.md file inside the repository. Sections of code in nox.py, as indicated by comments, are Copyright (c) 2018-2019 Nikita
+Misiura and are used under the same MIT License.
