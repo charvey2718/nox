@@ -45,6 +45,10 @@ Clearly, these datasets are not related to astrophotography in any way. Neverthe
 python GenerateStars.py
 ```
 
+The `nox data` folder contains some example training pairs:
+![x4.png](/nox data/x4.png) ![x4.png](/nox data/y4.png)
+![x6.png](/nox data/x6.png) ![x6.png](/nox data/y6.png)
+
 ## Training
 
 1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend using a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
