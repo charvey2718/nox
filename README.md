@@ -10,15 +10,11 @@ An easy-to-use standalone compiled version (written in C++) is in progress. I am
 # Inference - Use provided weights to remove stars from images
 
 1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
-
 1. Copy the `generator_color.h5` and `generator_grayscale.h5` weights files into the same directory as `nox.py`.
-
 1. Set the desired global parameters on lines 26 to 44. These variables cover settings for both inference and training. For inference the relevant ones are:
-
- - Set `n_channels` to `1` to process grayscale images, or to convert color images to grayscale before processing. Otherwise leave `n_channels` as `3`.
- - The `patch_size` and `stride` variables adjust the size and overlap of each square tile. You can experiment with these.
- - `BATCH_SIZE` is relevant for inference as well as training. It sets the number of samples per batch of computation. If you set this too high, you will run into out-of-memory errors, in which case reduce it, even down to `1`.
-
+  - Set `n_channels` to `1` to process grayscale images, or to convert color images to grayscale before processing. Otherwise leave `n_channels` as `3`.
+  - The `patch_size` and `stride` variables adjust the size and overlap of each square tile. You can experiment with these.
+  - `BATCH_SIZE` is relevant for inference as well as training. It sets the number of samples per batch of computation. If you set this too high, you will run into out-of-memory errors, in which case reduce it, even down to `1`.
 1. Run
 
 ```
@@ -33,19 +29,14 @@ This will create two files `starry.png` and `starless.png`. Note that the input 
 I added artificial stars to images from the [SIDD](https://www.eecs.yorku.ca/~kamel/sidd/dataset.php) and [RENOIR](https://ani.stat.fsu.edu/~abarbu/Renoir.html) datasets (which were originally intended for noise reduction).
 
 1. Download the sRGB images only from "SIDD-Small Dataset". The "Data" directory contains 160 noisy and ground truth image pairs. We are obviously not interested in these pairings, but the different noise levels are useful for generalization, and so all 320 images are included as background images.
-
 1. Download the "aligned" datasets for the three different cameras, which contains 120 noisy and ground truth image pairs. Again, all these images are included in the list of background images.
 
 ## Create dataset
 
 1. Ensure that the arguments to the `get_images_paths` function on lines 299 (or 300) point to the downloaded SIDD and RENOIR datasets respectively.
-
 1. Set the desired global parameters on lines 16 - 21. In particular the number of CPUs to use (I used 10), and the number of images to generate (I generated 5000). The performance of the resulting network is closely related to the number of training images.
-   
 1. Ensure you have installed all the relevant packages as per the imports in `GenerateStars.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
-
 1. Open a command prompt and `cd` to the directory containing `GenerateStars.py`. Before running, consider opening a [`screen`](https://www.gnu.org/software/screen/) which will allow you to detach and reattach your terminal window during the long execution time, particularly if you will run it remotely.
-
 1. Run
 
 ```
