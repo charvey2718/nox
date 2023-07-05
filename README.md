@@ -3,7 +3,7 @@ nox is a convolutional encoder-decoder residual neural network to remove stars f
 
 I am providing here the trained weights and the Python code to use them to remove stars from your own images. You can use these directly without having to do any dataset generation or training, although you can do this if you wish. I am also providing the full Python code here to generate your own training datasets, and to train a version of nox.
 
-Most of the code was written in Python. Generating the dataset relies on the [Astropy](https://www.astropy.org/) and [Photutils](https://photutils.readthedocs.io/en/stable/api/photutils.datasets.make_model_sources_image.html) Python libraries. I used Tensorflow for machine learning. Other [Python](https://www.tensorflow.org/) libraries are also used, and so you will need to have installed all the relevant packages as per the imports before you can use my code.
+Most of the code was written in Python. Generating the dataset relies on the [Astropy](https://www.astropy.org/) and [Photutils](https://photutils.readthedocs.io/en/stable/api/photutils.datasets.make_model_sources_image.html) Python libraries. I used [Tensorflow](https://www.tensorflow.org/) for machine learning. Other Python libraries are also used, and so you will need to have installed all the relevant packages as per the imports before you can use my code.
 
 An easier-to-use standalone compiled version (written in C++) is in progress. I am just waiting for an [OpenCV bug around importing Tensorflow models with LayerNormalization](https://github.com/opencv/opencv/pull/23882) to be fixed before I can release this.
 
