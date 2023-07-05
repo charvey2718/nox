@@ -70,7 +70,10 @@ The `nox data` folder contains some example training pairs:
    - `patience` sets the number of epochs with no improvement after which learning rate will be reduced.
    - `cooldown` sets the number of epochs to wait before resuming normal operation after the learning rate has been reduced.
    - `validation` sets whether the dataset should be split into training (80%) and validation (20%) sets. The model will not train on the validation data, and will evaluate the model metrics on this data at the end of each epoch.
-   - `save_freq` sets how many training epochs between saving the progress. Every `save_freq` epochs, the model metrics are saved in `history.csv` and plotted in `training.png`. A random image from the validation set is also processed and saved as `input.png`, `output.png` and `gt.png`.
+   - `save_freq` sets how many training epochs between saving the progress. Every `save_freq` epochs, the model metrics are saved in `history.csv` and plotted in `training.png` (for example, as shown below). A random image from the validation set is also processed and saved as `input.png`, `output.png` and `gt.png`.
+
+    ![training.png](training.png)
+
 1. Open a command prompt and `cd` to the directory containing `nox.py`. Before running, consider opening a [`screen`](https://www.gnu.org/software/screen/) which will allow you to detach and reattach your terminal window during the long execution time, particularly if you will run it remotely.
 1. Run
 
