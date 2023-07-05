@@ -12,9 +12,9 @@ An easy-to-use standalone compiled version (written in C++) is in progress. I am
 1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Copy the `generator_color.h5` and `generator_grayscale.h5` weights files into the same directory as `nox.py`.
 1. Set the desired global parameters on lines 26 to 44. These variables cover settings for both inference and training. For inference the relevant ones are:
-  - Set `n_channels` to `1` to process grayscale images, or to convert color images to grayscale before processing. Otherwise leave `n_channels` as `3`.
-  - The `patch_size` and `stride` variables adjust the size and overlap of each square tile. You can experiment with these.
-  - `BATCH_SIZE` is relevant for inference as well as training. It sets the number of samples per batch of computation. If you set this too high, you will run into out-of-memory errors, in which case reduce it, even down to `1`.
+   - Set `n_channels` to `1` to process grayscale images, or to convert color images to grayscale before processing. Otherwise leave `n_channels` as `3`.
+   - The `patch_size` and `stride` variables adjust the size and overlap of each square tile. You can experiment with these.
+   - `BATCH_SIZE` is relevant for inference as well as training. It sets the number of samples per batch of computation. If you set this too high, you will run into out-of-memory errors, in which case reduce it, even down to `1`.
 1. Run
 
 ```
