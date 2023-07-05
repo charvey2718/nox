@@ -34,7 +34,7 @@ I added artificial stars to images from the [SIDD](https://www.eecs.yorku.ca/~ka
 ## Create dataset
 
 1. Ensure that the arguments to the `get_images_paths` function on lines 299 (or 300) point to the downloaded SIDD and RENOIR datasets respectively.
-1. Set the desired global parameters on lines 16 - 21. In particular the number of CPUs to use (I used 10), and the number of images to generate (I generated 5000). The performance of the resulting network is closely related to the number of training images.
+1. Set the desired global parameters on lines 16 - 21. In particular `cpus` the number of CPUs to use (I used 10), and `imcount` the number of images to generate (I generated 5000). The performance of the resulting network is closely related to the number of training images. Leave `color` as `True`, even if you want to train a grayscale net as the grayscale conversion happens during training. This means you only need to generate one dataset.
 1. Ensure you have installed all the relevant packages as per the imports in `GenerateStars.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Open a command prompt and `cd` to the directory containing `GenerateStars.py`. Before running, consider opening a [`screen`](https://www.gnu.org/software/screen/) which will allow you to detach and reattach your terminal window during the long execution time, particularly if you will run it remotely.
 1. Run
@@ -44,3 +44,23 @@ python GenerateStars.py
 ```
 
 ## Training
+
+1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend use a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
+1. Set the desired global parameters on lines 26 to 44. These variables cover settings for both inference and training. For training the relevant ones are:
+   - `epochs` sets the maximum number of training epochs. I prefer to set this to a large number (`1500`) and kill training with `Ctrl-C` when ready.
+   - Set `n_channels` to `1` to train grayscale weights, or to `3` to train color weights. Both use the same color dataset, and conversion to grayscale happens if required during training.
+   - The `patch_size` and `stride` variables adjust the size and overlap of each square tile. You can experiment with these.
+   - `BATCH_SIZE` sets the number of samples per batch of computation. If you set this too high, you will run into out-of-memory errors, in which case reduce it, even down to `1`.
+   - `ema` sets the decay rate of the exponential moving average. Each epoch, the model's epochs keep `ema` % of the existing state and `(1 - ema)` % of the new state. This has been tuned to produce smooth model metrics that decay fast enough to allow timely assessment of plateauing and learning rate reduction without overtraining.
+   - `lr` sets the learning rate
+   - `patience` sets the number of epochs with no improvement after which learning rate will be reduced.
+   - `cooldown` sets the number of epochs to wait before resuming normal operation after lr has been reduced.
+   - `validation` sets whether the dataset should be split into training (80%) and validation (20%) sets. The model will not train on the validation data, and will evaluate the model metrics on this data at the end of each epoch. Every `save_freq` epochs, the model metrics are saved in `history.csv` and plotted in `training.png`. A random image from the validation set is also processed and saved as `input.png`, `output.png` and `gt.png`.
+   - `save_freq` sets how many training epochs between saving the progress.
+1. Run
+
+```
+python nox.py train
+```
+
+1. Note that model training can be resumed (including from the same optimizer state) by reissuing the command above.
