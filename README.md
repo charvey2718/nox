@@ -89,6 +89,6 @@ Note that model training can be resumed (including from the same optimizer state
 
 # License
 
-My code is Copyright (c) 2023 Christopher Harvey, and is made available under the MIT License, detailed in the LICENSE.md file inside the repository.
+My code and trained weights are Copyright (c) 2023 Christopher Harvey, and are made available under the MIT License, detailed in the LICENSE.md file inside the repository.
 
 Sections of code in nox.py, as indicated by comments, are Copyright (c) 2018-2019 Nikita Misiura and are used under the same MIT License.
