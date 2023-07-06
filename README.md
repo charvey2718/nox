@@ -53,11 +53,13 @@ Clearly, these datasets are not related to astrophotography in any way. Neverthe
 python GenerateStars.py
 ```
 
-The [`nox data`](/nox%20data/) folder contains some example training pairs. Here are a couple of training pairs from that folder (see the folder for more).
+The [`nox data`](/nox%20data/) folder contains some example training pairs. Here are a couple of thumbnail previews of training pairs from that folder (click for full resolution or see the folder for more):
 
-![x6.png](/nox%20data/x6.png) ![y6.png](/nox%20data/y6.png)
+[![x6.png](/nox%20data/thumbnails/x6.png)](/nox%20data/x6.png)
+[![y6.png](/nox%20data/thumbnails/y6.png)](/nox%20data/y6.png)
 
-![x13.png](/nox%20data/x13.png) ![y13.png](/nox%20data/y13.png)
+[![x13.png](/nox%20data/thumbnails/x13.png)](/nox%20data/x13.png)
+[![y13.png](/nox%20data/thumbnails/y13.png)](/nox%20data/y13.png)
 
 ## Training
 
