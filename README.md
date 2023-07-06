@@ -31,6 +31,9 @@ The [`inference examples`](/inference%20examples/) folder contains a selection o
 [![Tadpoles starry color.png](/inference%20examples/thumbnails/Tadpoles%20starry%20color.png)](/inference%20examples/Tadpoles%20starry%20color.png)
 [![Tadpoles starless color.png](inference%20examples/thumbnails/Tadpoles%20starless%20color.png)](inference%20examples/Tadpoles%20starless%20color.png)
 
+[![Crescent Nebula starry color.png](/inference%20examples/thumbnails/Crescent%20Nebula%20starry%20color.png)](/inference%20examples/Crescent%20Nebula%20starry%20color.png)
+[![Crescent Nebula starless color.png](/inference%20examples/thumbnails/Crescent%20Nebula%20starless%20color.png)](/inference%20examples/Crescent%20Nebula%20starless%20color.png)
+
 # Train a version of nox
 
 ## Background images
