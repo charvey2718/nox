@@ -36,6 +36,8 @@ The [`inference examples`](/inference%20examples/) folder contains a selection o
 
 # Train a version of nox
 
+This is not necessary to use nox to remove stars from your images, but may be of interest to some nevertheless.
+
 ## Background images
 I added artificial stars to images from the [SIDD](https://www.eecs.yorku.ca/~kamel/sidd/dataset.php) and [RENOIR](https://ani.stat.fsu.edu/~abarbu/Renoir.html) datasets (which were originally intended for noise reduction).
 
