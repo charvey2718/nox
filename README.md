@@ -25,7 +25,7 @@ This will create two files, `starry.png` and `starless.png`: `starry.png` is a c
 
 The [`inference examples`](/inference%20examples/) folder contains a selection of starry and starless examples. Here are a couple of thumbnail previews from that folder (click for full resolution or see the folder for more):
 
-[![Bubble Nebula starry color.png](/inference%20examples/thumbnails/Bubble%20Nebula%20starry%20color.png)](/inference%20examples/Bubble%20Nebula%20starry%20color.png))
+[![Bubble Nebula starry color.png](/inference%20examples/thumbnails/Bubble%20Nebula%20starry%20color.png)](/inference%20examples/Bubble%20Nebula%20starry%20color.png)
 [![Bubble Nebula starless color.png](/inference%20examples/thumbnails/Bubble%20Nebula%20starless%20color.png)](/inference%20examples/Bubble%20Nebula%20starless%20color.png)
 
 [![Tadpoles starry color.png](/inference%20examples/thumbnails/Tadpoles%20starry%20color.png)](/inference%20examples/Tadpoles%20starry%20color.png)
