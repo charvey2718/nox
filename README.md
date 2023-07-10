@@ -5,9 +5,25 @@ I am providing [here the trained weights](https://www.dropbox.com/sh/iq7hme4cab3
 
 Most of the code was written in Python. Generating the dataset relies on the [Astropy](https://www.astropy.org/) and [Photutils](https://photutils.readthedocs.io/) Python libraries. I used [Tensorflow](https://www.tensorflow.org/) for machine learning. Other Python libraries are also used, and so you will need to have installed all the relevant packages as per the imports before you can use my code.
 
-An easier-to-use standalone compiled version (written in C++) is in progress. I am just waiting for an [OpenCV bug around importing Tensorflow models with LayerNormalization](https://github.com/opencv/opencv/pull/23882) to be fixed before I can release this.
+# `nox.exe` inference - Use standalone inference tool and provided weights to remove stars from images
 
-# Inference - Use provided weights to remove stars from images
+I have created a standalone compiled inference tool, which I think is much easier to use than my Python scripts. You can download it [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0).
+
+The tool is cross-compilable for Mac and Linux. I've provided the C++ source code, so if that interests you, by all means, go ahead and recompile it for your operating system of choice. You will need to download, compile and link the [OpenCV library](https://opencv.org/releases/) as part of this.
+
+Note that, due to an [OpenCV bug around importing Tensorflow models with LayerNormalization](https://github.com/opencv/opencv/pull/23882), this standalone version is not exactly the same as the one developed in Python, and does not perform quite as well either. (The difference is that I have swapped LayerNormalization for BatchNormalization everywhere.) When the bug is fixed, I will update the weights files at the release link above and then it will be identical.
+
+1. Download `nox.exe` and the accompanying `.pb` weights files from [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0), and store them in the same location.
+1. Since `nox.exe` is a command line tool, in Windows start a Command prompt. (Press the Start button and type `cmd` and press enter.)
+1. Drag and drop the downloaded `nox.exe` onto the Command prompt.
+1. `nox.exe` receives command line arguments. For help, add ` --help` (with a space before the hyphens) and press enter. This displays information about the accepted arguments.
+1. Use the up arrow key on the keyboard to retrieve and edit the last command.
+1. Basic usage is: `"C:\path\to\nox.exe" -f "C:\path\to\input_image.tiff" -r`.
+   This will read `"C:\path\to\input_image.tiff"`, remove the stars from it, and create the output file `"C:\path\to\input_image_nox.tiff"`, overwriting it if it already exists.
+   `-f` indicates that what follows (`"C:\path\to\input_image.tiff"`) is the input file.
+   `-r` indicates that the output file should be overwritten if it already exists.
+
+# Python inference - Use Python and provided weights to remove stars from images
 
 1. Ensure you have installed all the relevant packages as per the imports in `nox.py`. I recommend using a [`venv` virtual environment](https://docs.python.org/3/library/venv.html) for this, but that is up to you.
 1. Download the [trained weights from here](https://www.dropbox.com/sh/iq7hme4cab3qki7/AACvh3YyAZukJOxp25umtJ_Ra?dl=0) and move the `generator_color.h5` and `generator_grayscale.h5` weights files into the same directory as `nox.py`.
