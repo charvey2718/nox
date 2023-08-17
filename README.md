@@ -9,11 +9,9 @@ Most of the code was written in Python. Generating the dataset relies on the [As
 
 I have created a standalone compiled inference tool, which I think is much easier to use than my Python scripts. You can download it [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0).
 
-The tool is cross-compilable for Mac and Linux. I've provided the C++ source code, so if that interests you, by all means, go ahead and recompile it for your operating system of choice. You will need to download, compile and link the [OpenCV library](https://opencv.org/releases/) as part of this.
+The tool is cross-compilable for Mac and Linux. I've provided the C++ source code, so if that interests you, by all means, go ahead and recompile it for your operating system of choice. You will need to download, compile and link the [OpenCV library](https://opencv.org/releases/) as part of this. You will also need the [Tensorflow C API](https://www.tensorflow.org/install/lang_c) and the [CPPFlow header library](https://github.com/serizba/cppflow).
 
-Note that, due to an [OpenCV bug around importing Tensorflow models with LayerNormalization](https://github.com/opencv/opencv/pull/23882), this standalone version is not exactly the same as the one developed in Python, and does not perform quite as well either. (The difference is that I have swapped LayerNormalization for BatchNormalization everywhere.) When the bug is fixed, I will update the weights files at the release link above and then it will be identical.
-
-1. Download `nox.exe` and the accompanying `.pb` weights files from [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0), and store them in the same location.
+1. Download `nox.exe`, the accompanying `.pb` model files, and `tensorflow.dll` from [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0), and store them all in the same location.
 1. Since `nox.exe` is a command line tool, in Windows start a Command prompt. (Press the Start button and type `cmd` and press enter.)
 1. Drag and drop the downloaded `nox.exe` onto the Command prompt.
 1. `nox.exe` receives command line arguments. For help, add ` --help` (with a space before the hyphens) and press enter. This displays information about the accepted arguments.
@@ -22,6 +20,7 @@ Note that, due to an [OpenCV bug around importing Tensorflow models with LayerNo
    This will read `"C:\path\to\input_image.tiff"`, remove the stars from it, and create the output file `"C:\path\to\input_image_nox.tiff"`, overwriting it if it already exists.
    `-f` indicates that what follows (`"C:\path\to\input_image.tiff"`) is the input file.
    `-r` indicates that the output file should be overwritten if it already exists.
+   Many other settings are possible, including patch size, stride, and batch size.
 
 # Python inference - Use Python and provided weights to remove stars from images
 
