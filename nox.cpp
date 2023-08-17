@@ -10,7 +10,8 @@
 
 // function definitions
 void about();
-void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size = 1);
+void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size = 1);
+void CVmodelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size = 1);
 cv::Mat openImage(const std::string& file);
 void printHelp();
 void saveImage(const std::string& file, const cv::Mat image);
@@ -196,7 +197,7 @@ int main(int argc, char* argv[])
 		int done_den;
 		bool complete = false;
 		std::cout << "Batch size: " << batch_size << std::endl;
-		std::thread run([&](){modelInference(done_num, done_den, complete, inputImage, out, weightsFilename, patch_size, crop, batch_size);});
+		std::thread run([&](){TFmodelInference(done_num, done_den, complete, inputImage, out, weightsFilename, patch_size, crop, batch_size);});
 		while(!complete)
 		{
 			if(done_den > 0) std::cout << "\rProcessing... " << int(ceil(100.*done_num/done_den)) << "% (press CTRL+C to stop)" << std::flush;
@@ -228,8 +229,178 @@ void about()
 	std::cout << "(c) by Christopher M. Harvey 2023" << std::endl << std::endl;
 }
 
-void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size)
+void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size)
 {
+	// Tensorflow version - requires Tensorflow C API DLL
+	
+    // Add border around noisy image for patch borderCropping
+	cv::Mat nsyPlusBrdr;
+    cv::copyMakeBorder(src, nsyPlusBrdr, crop, crop, crop, crop, cv::BORDER_REFLECT);
+    int sizeX = nsyPlusBrdr.cols; // image width
+    int sizeY = nsyPlusBrdr.rows; // image height
+	
+	// Split into patches
+	std::vector<cv::Mat> patches;	
+	int fromRow = 0; // row pixel index
+	int fromCol = 0; // col pixel index
+	int nRows = 0;
+	int nCols = 0;
+	bool finalRow = false;
+	while(true) // loop rows
+	{
+		nRows++;
+		if(fromRow + dim >= sizeY)
+		{
+			fromRow = sizeY - dim;
+			finalRow = true;
+		}
+		
+		bool finalCol = false;
+		while(true) // loop cols
+		{
+			if(finalRow) nCols++; // count columns on final row only
+            
+			if(fromCol + dim >= sizeX)
+			{
+				fromCol = sizeX - dim;
+				finalCol = true;
+			}
+            
+			fromCol = std::max(0, fromCol);
+			fromRow = std::max(0, fromRow);
+			patches.push_back(nsyPlusBrdr(cv::Rect(fromCol, fromRow, fromCol + dim < sizeX ? dim : sizeX - fromCol, fromRow + dim < sizeY ? dim : sizeY - fromRow)));
+            
+			if(finalCol)
+			{
+				fromCol = 0;
+				break;
+			}
+			else fromCol += (dim - 2*crop);
+		}
+		
+		if(finalRow) break;
+		else fromRow += (dim - 2*crop);
+	}
+	done_den = patches.size();
+	
+	// Inference
+	cppflow::model* model = NULL;
+	if(cv::utils::fs::exists(weights))
+	{
+		try
+		{
+			model = new cppflow::model(weights, cppflow::model::FROZEN_GRAPH);
+		}
+		catch (cv::Exception& e)
+		{
+			std::cerr << e.msg << std::endl;
+			return;
+		}
+	}
+	std::vector<cv::Mat> inferred_patches(patches.size());
+	auto f = [&](unsigned int from, unsigned int num) // lambda expression to process a group of patches in thread
+	{
+		// Infer a batch
+		std::vector<float> batch; // Build batch as std::vector of floats and convert to tensor of appropriate shape
+		for(unsigned int i = from; i < patches.size() && i < from + num; ++i) // i is patch index
+		{
+			// build batch
+			cv::Mat flat = patches[i].clone().reshape(1, patches[i].total()*patches[i].channels());
+			std::vector<float> flatPatch = patches[i].isContinuous()? flat : flat.clone();
+			batch.insert(batch.end(), flatPatch.begin(), flatPatch.end());
+
+			unsigned int current_batch_size = int(batch.size() / patches[i].rows / patches[i].cols / patches[i].channels());
+			if(current_batch_size == batch_size || i == patches.size() - 1 || i == from + num - 1) // when batch is filled (or have run out of patches)...
+			{
+				auto batchTensor = cppflow::tensor(batch, {current_batch_size, patches[i].rows, patches[i].cols, patches[i].channels()}); // ...put images in tensor
+				auto outputTensor = ((*model)({{"inputs:0", batchTensor}}, {{"Identity:0"}}))[0]; // and infer batch
+				std::vector<float> outputVector = outputTensor.get_data<float>();
+				
+				// store inferred patches in corresponding place in vector
+				size_t count = 0; // number of stored floats
+				for(size_t j = i + 1 - current_batch_size; j < i + 1; ++j) // j is patch index
+				{
+					// Tensorflow version - copy relevant patch floats from output to std::vector, convert to cv::Mat and reshape
+					size_t num2 = patches[j].rows*patches[j].cols*patches[j].channels();
+					std::vector patch = std::vector<float>(outputVector.begin() + count, outputVector.begin() + count + num2);
+					inferred_patches[j] = cv::Mat(patch, true);
+					inferred_patches[j] = inferred_patches[j].reshape(patches[i].channels(), patches[i].rows);
+					count += num2;
+				}
+				done_num += current_batch_size;
+				
+				batch.clear(); // clear batch ready to be filled with next set of patches
+			}
+		}
+	};
+	std::cout << "Number of patches: " << patches.size() << std::endl;
+	unsigned int num_batches = ceil(1.*patches.size()/batch_size);
+	std::cout << "Number of batches: " << num_batches << std::endl;
+	unsigned int num_threads = std::thread::hardware_concurrency();
+	if(num_threads == 0) num_threads = 1;
+	if(num_batches < num_threads) num_threads = num_batches;
+	std::cout << "Threads used: " << num_threads << std::endl;
+	unsigned int batches_per_thread = ceil(1.*num_batches/num_threads);
+	std::cout << "Batches per thread: " << batches_per_thread << std::endl;
+	unsigned int patches_per_thread = batches_per_thread*batch_size;
+	
+	std::vector<std::thread> threads;
+	for(unsigned int i = 0; i < num_threads; i++)
+	{
+		if(i != num_threads - 1)
+		{
+			std::thread th(f, patches_per_thread*i, patches_per_thread);
+			threads.push_back(std::move(th));
+		}
+		else // final thread may need to recalculate some patches to maintain batch size
+		{
+			unsigned int overshoot = patches_per_thread*i + patches_per_thread - patches.size();
+			std::thread th(f, patches_per_thread*i - overshoot, patches_per_thread);
+			threads.push_back(std::move(th));
+		}
+	}
+	for(auto& i:threads) i.join();
+	if(model != NULL) delete model;
+	
+	// Reassemble image
+	fromRow = 0; // row pixel index
+	fromCol = 0; // col pixel index
+	int placeDim = dim - 2*crop; // dimension of each patch without crop to be placed in assembled image
+	int count = 0;
+	for(int i = 0; i < nRows; ++i)
+	{
+		if(i == nRows - 1) fromRow = (sizeY - 2*crop) - placeDim;
+		
+		for(int j = 0; j < nCols; ++j)
+		{
+			if(j == nCols - 1) fromCol = (sizeX - 2*crop) - placeDim;
+            
+			fromCol = std::max(0, fromCol);
+			fromRow = std::max(0, fromRow);
+			int w = fromCol + placeDim < sizeX - 2*crop ? placeDim:sizeX - 2*crop - fromCol;
+			int h = fromRow + placeDim < sizeY - 2*crop ? placeDim:sizeY - 2*crop - fromRow;
+			
+			inferred_patches[count](cv::Rect(crop, crop, w, h)).copyTo(
+				dst(cv::Rect(fromCol, fromRow, w, h)));
+			count = count + 1;
+            
+			if(j == nCols - 1)
+			{
+				fromCol = 0;
+				break;
+			}
+			else fromCol += placeDim;
+		}
+        
+		fromRow += placeDim;
+	}
+	complete = true;
+}
+
+void CVmodelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size)
+{
+	// OpenCV version - not used as OpenCV cannot read the model yet
+	
     // Add border around noisy image for patch borderCropping
 	cv::Mat nsyPlusBrdr;
     cv::copyMakeBorder(src, nsyPlusBrdr, crop, crop, crop, crop, cv::BORDER_REFLECT);
@@ -282,19 +453,14 @@ void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat&
 	
 	// Inference
 	std::vector<cv::Mat> inferred_patches(patches.size());
-	auto f = [&](unsigned int from, unsigned int num) // lambda expression to process batch in thread
+	auto f = [&](unsigned int from, unsigned int num) // lambda expression to process a group of patches in thread
 	{
-		cppflow::model* model = NULL; // Tensorflow version
-		// cv::dnn::Net model; // OpenCV version
+		cv::dnn::Net model;
 		if(cv::utils::fs::exists(weights))
 		{
 			try
 			{
-				// Tensorflow version - requires Tensorflow C API DLL
-				model = new cppflow::model(weights, cppflow::model::FROZEN_GRAPH);
-				
-				// OpenCV version - not used as OpenCV cannot read the model
-				// model = cv::dnn::readNet(weights);
+				model = cv::dnn::readNet(weights);
 			}
 			catch (cv::Exception& e)
 			{
@@ -306,73 +472,61 @@ void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat&
 		// model.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL);
 		
 		// Infer a batch
-		std::vector<float> batch; // Tensorflow version - Build batch as std::vector of floats and convert to tensor of appropriate shape
-		// std::vector<cv::Mat> batch; // OpenCV version - Batch is a vector of cv::Mat
+		std::vector<cv::Mat> batch;
 		for(unsigned int i = from; i < patches.size() && i < from + num; ++i) // i is patch index
 		{
 			// build batch
-			cv::Mat flat = patches[i].clone().reshape(1, patches[i].total()*patches[i].channels());
-			std::vector<float> flatPatch = patches[i].isContinuous()? flat : flat.clone();
-			batch.insert(batch.end(), flatPatch.begin(), flatPatch.end());
+			batch.push_back(patches[i]);
 
-			unsigned int current_batch_size = int(batch.size() / patches[i].rows / patches[i].cols / patches[i].channels());
-			if(current_batch_size == batch_size || i == patches.size() - 1) // when batch is filled (or have run out of patches)...
+			unsigned int current_batch_size = batch.size();
+			if(current_batch_size == batch_size || i == patches.size() - 1 || i == from + num - 1) // when batch is filled (or have run out of patches)...
 			{
-				// Tensorflow version - requires Tensorflow C API DLL
-				auto batchTensor = cppflow::tensor(batch, {current_batch_size, patches[i].rows, patches[i].cols, patches[i].channels()}); // ...put images in tensor
-				auto outputTensor = ((*model)({{"inputs:0", batchTensor}}, {{"Identity:0"}}))[0]; // and infer batch
-				std::vector<float> outputVector = outputTensor.get_data<float>();
-				
-				// OpenCV version - not used as OpenCV cannot read the model
-				// cv::Mat blob = cv::dnn::blobFromImages(batch);
-				// model.setInput(blob);
-				// cv::Mat outblob = model.forward(); // ...infer batch
-				// std::vector<cv::Mat> outarray;
-				// cv::dnn::imagesFromBlob(outblob, outarray);
+				cv::Mat blob = cv::dnn::blobFromImages(batch);
+				model.setInput(blob);
+				cv::Mat outblob = model.forward(); // ...infer batch
+				std::vector<cv::Mat> outarray;
+				cv::dnn::imagesFromBlob(outblob, outarray);
 				
 				// store inferred patches in corresponding place in vector
-				size_t count = 0; // Tensorflow version - 'count' is number of stored floats
-				// size_t count = 0; // OpenCV version - 'count' is number of stored patches
+				size_t count = 0; // number of stored patches
 				for(size_t j = i + 1 - current_batch_size; j < i + 1; ++j) // j is patch index
 				{
-					// Tensorflow version - copy relevant patch floats from output to std::vector, convert to cv::Mat and reshape
-					size_t num = patches[j].rows*patches[j].cols*patches[j].channels();
-					std::vector patch = std::vector<float>(outputVector.begin() + count, outputVector.begin() + count + num);
-					inferred_patches[j] = cv::Mat(patch, true);
-					inferred_patches[j] = inferred_patches[j].reshape(patches[i].channels(), patches[i].rows);
-					count += num;
-					
-					// OpenCV version
-					// inferred_patches[j] = outarray[count];
-					// count++;
+					inferred_patches[j] = outarray[count];
+					count++;
 				}
 				done_num += current_batch_size;
 				
 				batch.clear(); // clear batch ready to be filled with next set of patches
 			}
 		}
-		if(model != NULL) delete model;
 	};
-	// Tensorflow version - Tensorflow C API handles multithreading automatically
-	f(0, patches.size());
+	std::cout << "Number of patches: " << patches.size() << std::endl;
+	unsigned int num_batches = ceil(1.*patches.size()/batch_size);
+	std::cout << "Number of batches: " << num_batches << std::endl;
+	unsigned int num_threads = std::thread::hardware_concurrency();
+	if(num_threads == 0) num_threads = 1;
+	if(num_batches < num_threads) num_threads = num_batches;
+	std::cout << "Threads used: " << num_threads << std::endl;
+	unsigned int batches_per_thread = ceil(1.*num_batches/num_threads);
+	std::cout << "Batches per thread: " << batches_per_thread << std::endl;
+	unsigned int patches_per_thread = batches_per_thread*batch_size;
 	
-	// OpenCV version - distribute the processing to the available number of threads
-	// unsigned int num_threads = std::thread::hardware_concurrency();
-	// if(num_threads == 0) num_threads = 1;
-	// int patches_per_thread = patches.size()/num_threads;
-	// if(patches_per_thread == 0)
-	// {
-		// patches_per_thread = 1;
-		// num_threads = patches.size();
-	// }
-	// std::vector<std::thread> threads;
-	// for(unsigned int i = 0; i < num_threads; i++)
-	// {
-		// std::thread th(f, patches_per_thread*i, (i == num_threads - 1 ? patches.size() - patches_per_thread*i : patches_per_thread));
-		// threads.push_back(std::move(th));
-	// }
-	// for(auto& i:threads) i.join();
-	
+	std::vector<std::thread> threads;
+	for(unsigned int i = 0; i < num_threads; i++)
+	{
+		if(i != num_threads - 1)
+		{
+			std::thread th(f, patches_per_thread*i, patches_per_thread);
+			threads.push_back(std::move(th));
+		}
+		else // final thread may need to recalculate some patches to maintain batch size
+		{
+			unsigned int overshoot = patches_per_thread*i + patches_per_thread - patches.size();
+			std::thread th(f, patches_per_thread*i - overshoot, patches_per_thread);
+			threads.push_back(std::move(th));
+		}
+	}
+	for(auto& i:threads) i.join();
 	
 	// Reassemble image
 	fromRow = 0; // row pixel index
