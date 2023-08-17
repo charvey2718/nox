@@ -6,6 +6,7 @@
 #include "getopt.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/utils/filesystem.hpp>
+#include <cppflow/cppflow.h>
 
 // function definitions
 void about();
@@ -23,6 +24,7 @@ int main(int argc, char* argv[])
 	bool overwrite = false;
 	bool color = false;
 	bool grayscale = false;
+	int batch_size = 1;
 	int patch_size = 512;
 	int stride = 128;
 
@@ -32,6 +34,7 @@ int main(int argc, char* argv[])
 	{
 		static struct option long_options[] =
 		{
+			{"batch", required_argument, 0, 'b'},
 			{"color", no_argument, 0, 'c'},
 			{"file", required_argument, 0, 'f'},
 			{"grayscale", no_argument, 0, 'g'},
@@ -46,7 +49,7 @@ int main(int argc, char* argv[])
 		};
 
 		int option_index = 0; // stores option index
-		c = getopt_long(argc, argv, "cf:gho:p:rs:vw:", long_options, &option_index);
+		c = getopt_long(argc, argv, "b:cf:gho:p:rs:vw:", long_options, &option_index);
 
 		if (c == -1) break; // end of options
         
@@ -55,6 +58,10 @@ int main(int argc, char* argv[])
 			case 0:
 				break; // option set a flag
 			
+			case 'b':
+				batch_size = atoi(optarg);
+				break;
+				
 			case 'c':
 				color = true;
 				break;
@@ -174,6 +181,9 @@ int main(int argc, char* argv[])
 		cvtColor(inputImage,inputImage,cv::COLOR_BGR2GRAY);
 		std::cout << "done" << std::endl;
 	}
+	cv::Scalar iden(1., 1., 1.);
+	if(inputImage.channels() == 1) iden = cv::Scalar(1.);
+	inputImage = inputImage*2. - iden;
 	
 	// 5. Process input
 	cv::Mat out = cv::Mat::zeros(inputImage.size(), inputImage.type()); // to hold output
@@ -185,7 +195,8 @@ int main(int argc, char* argv[])
 		int done_num = 0;
 		int done_den;
 		bool complete = false;
-		std::thread run([&](){modelInference(done_num, done_den, complete, inputImage, out, weightsFilename, patch_size, crop);});
+		std::cout << "Batch size: " << batch_size << std::endl;
+		std::thread run([&](){modelInference(done_num, done_den, complete, inputImage, out, weightsFilename, patch_size, crop, batch_size);});
 		while(!complete)
 		{
 			if(done_den > 0) std::cout << "\rProcessing... " << int(ceil(100.*done_num/done_den)) << "% (press CTRL+C to stop)" << std::flush;
@@ -195,6 +206,8 @@ int main(int argc, char* argv[])
 		}
 		if(done_den > 0) std::cout << "\rProcessing... 100%                       " << std::endl;
 		run.join();
+		out = (out + iden)/2;
+		out = cv::min(cv::max(out, 0.), 1.);
 	}
 	else
 	{
@@ -203,7 +216,7 @@ int main(int argc, char* argv[])
 	}
 	
 	// 6. Save image
-	out.convertTo(out,CV_16U,65536.0); // Convert 32-bit to 16-bit before saving
+	out.convertTo(out, CV_16U, 65536.0); // Convert 32-bit to 16-bit before saving
 	saveImage(outputFilename, out);
 	
     return 0;
@@ -271,12 +284,17 @@ void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat&
 	std::vector<cv::Mat> inferred_patches(patches.size());
 	auto f = [&](unsigned int from, unsigned int num) // lambda expression to process batch in thread
 	{
-		cv::dnn::Net model;
+		cppflow::model* model = NULL; // Tensorflow version
+		// cv::dnn::Net model; // OpenCV version
 		if(cv::utils::fs::exists(weights))
 		{
 			try
 			{
-				model = cv::dnn::readNet(weights);
+				// Tensorflow version - requires Tensorflow C API DLL
+				model = new cppflow::model(weights, cppflow::model::FROZEN_GRAPH);
+				
+				// OpenCV version - not used as OpenCV cannot read the model
+				// model = cv::dnn::readNet(weights);
 			}
 			catch (cv::Exception& e)
 			{
@@ -288,48 +306,73 @@ void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat&
 		// model.setPreferableTarget(cv::dnn::DNN_TARGET_OPENCL);
 		
 		// Infer a batch
-		std::vector<cv::Mat> batch;
-		for(unsigned int i = from; i < patches.size() && i < from + num; ++i)
+		std::vector<float> batch; // Tensorflow version - Build batch as std::vector of floats and convert to tensor of appropriate shape
+		// std::vector<cv::Mat> batch; // OpenCV version - Batch is a vector of cv::Mat
+		for(unsigned int i = from; i < patches.size() && i < from + num; ++i) // i is patch index
 		{
 			// build batch
-			batch.push_back(patches[i]);
-			
-			if(batch.size() == batch_size || i == patches.size() - 1) // when batch complete...
+			cv::Mat flat = patches[i].clone().reshape(1, patches[i].total()*patches[i].channels());
+			std::vector<float> flatPatch = patches[i].isContinuous()? flat : flat.clone();
+			batch.insert(batch.end(), flatPatch.begin(), flatPatch.end());
+
+			unsigned int current_batch_size = int(batch.size() / patches[i].rows / patches[i].cols / patches[i].channels());
+			if(current_batch_size == batch_size || i == patches.size() - 1) // when batch is filled (or have run out of patches)...
 			{
-				cv::Mat blob = cv::dnn::blobFromImages(batch);
-				model.setInput(blob);
-				cv::Mat outblob = model.forward(); // ...infer batch
-				std::vector<cv::Mat> outarray;
-				cv::dnn::imagesFromBlob(outblob, outarray);
+				// Tensorflow version - requires Tensorflow C API DLL
+				auto batchTensor = cppflow::tensor(batch, {current_batch_size, patches[i].rows, patches[i].cols, patches[i].channels()}); // ...put images in tensor
+				auto outputTensor = ((*model)({{"inputs:0", batchTensor}}, {{"Identity:0"}}))[0]; // and infer batch
+				std::vector<float> outputVector = outputTensor.get_data<float>();
+				
+				// OpenCV version - not used as OpenCV cannot read the model
+				// cv::Mat blob = cv::dnn::blobFromImages(batch);
+				// model.setInput(blob);
+				// cv::Mat outblob = model.forward(); // ...infer batch
+				// std::vector<cv::Mat> outarray;
+				// cv::dnn::imagesFromBlob(outblob, outarray);
 				
 				// store inferred patches in corresponding place in vector
-				int count = 0;
-				for(unsigned int j = i + 1 - batch_size; j < i + 1; ++j)
+				size_t count = 0; // Tensorflow version - 'count' is number of stored floats
+				// size_t count = 0; // OpenCV version - 'count' is number of stored patches
+				for(size_t j = i + 1 - current_batch_size; j < i + 1; ++j) // j is patch index
 				{
-					inferred_patches[j] = outarray[count];
-					count++;
+					// Tensorflow version - copy relevant patch floats from output to std::vector, convert to cv::Mat and reshape
+					size_t num = patches[j].rows*patches[j].cols*patches[j].channels();
+					std::vector patch = std::vector<float>(outputVector.begin() + count, outputVector.begin() + count + num);
+					inferred_patches[j] = cv::Mat(patch, true);
+					inferred_patches[j] = inferred_patches[j].reshape(patches[i].channels(), patches[i].rows);
+					count += num;
+					
+					// OpenCV version
+					// inferred_patches[j] = outarray[count];
+					// count++;
 				}
-				done_num += batch_size;
+				done_num += current_batch_size;
 				
 				batch.clear(); // clear batch ready to be filled with next set of patches
 			}
 		}
+		if(model != NULL) delete model;
 	};
-	unsigned int num_threads = std::thread::hardware_concurrency();
-	if(num_threads == 0) num_threads = 1;
-	int patches_per_thread = patches.size()/num_threads;
-	if(patches_per_thread == 0)
-	{
-		patches_per_thread = 1;
-		num_threads = patches.size();
-	}
-	std::vector<std::thread> threads;
-	for(unsigned int i = 0; i < num_threads; i++)
-	{
-		std::thread th(f, patches_per_thread*i, (i == num_threads - 1 ? patches.size() - patches_per_thread*i : patches_per_thread));
-		threads.push_back(std::move(th));
-	}
-	for(auto& i:threads) i.join();
+	// Tensorflow version - Tensorflow C API handles multithreading automatically
+	f(0, patches.size());
+	
+	// OpenCV version - distribute the processing to the available number of threads
+	// unsigned int num_threads = std::thread::hardware_concurrency();
+	// if(num_threads == 0) num_threads = 1;
+	// int patches_per_thread = patches.size()/num_threads;
+	// if(patches_per_thread == 0)
+	// {
+		// patches_per_thread = 1;
+		// num_threads = patches.size();
+	// }
+	// std::vector<std::thread> threads;
+	// for(unsigned int i = 0; i < num_threads; i++)
+	// {
+		// std::thread th(f, patches_per_thread*i, (i == num_threads - 1 ? patches.size() - patches_per_thread*i : patches_per_thread));
+		// threads.push_back(std::move(th));
+	// }
+	// for(auto& i:threads) i.join();
+	
 	
 	// Reassemble image
 	fromRow = 0; // row pixel index
@@ -362,7 +405,6 @@ void modelInference(int& done_num, int& done_den, bool& complete, const cv::Mat&
         
 		fromRow += placeDim;
 	}
-	dst = cv::min(cv::max(dst, 0.), 1.);
 	complete = true;
 }
 
@@ -385,6 +427,8 @@ cv::Mat openImage(const std::string& file) // returns 32 bit float
 void printHelp()
 {
 	printf("nox usage:\n");
+	printf(
+		"  -b,  --batch     number of patches to infer simultaneously (default: 1)\n");
 	printf(
 		"  -c,  --color     use color weights (grayscale input will be duplicated as RGB\n"
 		"                   channels; RGB output will be converted to grayscale)\n");
