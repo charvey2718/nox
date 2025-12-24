@@ -21,6 +21,40 @@ The tool is cross-compilable for Mac and Linux. I've provided the C++ source cod
    `-f` indicates that what follows (`"C:\path\to\input_image.tiff"`) is the input file.
    `-r` indicates that the output file should be overwritten if it already exists.
    Many other settings are possible, including patch size, stride, and batch size.
+1. To enable temporary automatic stretching of linear data, set the `-l` flag (the letter 'ell'). The stretch parameters can be adjusted by tuning the `-d` parameter (shadows clipping) and the `-t` parameter (target mean).
+
+More details are below, and by specifying '--help' in the command line arguments.
+
+## GPU acceleration
+Despite the official TF builds with GPU support only being available for Linux, it has been [reported](https://github.com/charvey2718/nox/issues/2) that it is possible to run `nox.exe` on a GPU, where it runs extremely fast compared to StarNet or StarXTerminator. I have been unable to test this myself (my current personal laptop is very old and does not have a GPU!). The following guidance is thanks to [naixx](https://github.com/naixx).
+
+> I used TensorFlow as well as other CUDA stuff from PixInsight `bin/`. I believe you can also get them from StarNet, StarXTerminator, or other sources. Additional CUDA libs were also required which I downloaded from [NVIDIA](https://developer.download.nvidia.com/compute/cudnn/redist/cudnn/windows-x86_64/cudnn-windows-x86_64-8.9.4.25_cuda11-archive.zip).
+
+```
+cublas64_11.dll
+cublasLt64_11.dll
+cudart64_110.dll
+cudnn_adv_infer64_8.dll
+cudnn_adv_train64_8.dll
+cudnn_cnn_infer64_8.dll
+cudnn_cnn_train64_8.dll
+cudnn_ops_infer64_8.dll
+cudnn_ops_train64_8.dll
+cudnn64_8.dll
+cufft64_10.dll
+cusparse64_11.dll
+libwinpthread-1.dll
+tensorflow.dll
+zlibwapi.dll
+```
+
+## Temporary automatic stretching of linear data
+
+Temporary automatic stretching is enabled by setting the `-l` (letter 'ell') command line flag. This will automatically apply a temporary midtones transfer function (MTF) stretch before removing the stars, and then remove the stretch again:
+- The shadows will be clipped at a number of standard deviations relative to the median pixel value. The default number of standard deviations is `-0.75`, which can be adjusted by setting the `-d` parameter (shadows clipping).
+- The midtones value will be set to achieve a mean pixel value. The default mean pixel value is `0.1875`, which can be adjusted by setting the `-t` parameter (target mean).
+
+Any clipped pixels will be restored to their value in the original image before any processing. Since this only affects dark pixels, it is very unlikely to affect star removal results.
 
 # Python inference - Use Python and provided weights to remove stars from images
 
