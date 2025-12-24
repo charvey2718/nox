@@ -7,7 +7,7 @@ Most of the code was written in Python. Generating the dataset relies on the [As
 
 # `nox.exe` inference - Use standalone inference tool and provided weights to remove stars from images
 
-I have created a standalone compiled inference tool, which I think is much easier to use than my Python scripts. You can download it [here](https://github.com/charvey2718/nox/releases/tag/v1.0.0).
+I have created a standalone compiled inference tool, which I think is much easier to use than my Python scripts. You can download it [here](https://github.com/charvey2718/nox/releases/tag/v1.1.0).
 
 The tool is cross-compilable for Mac and Linux. I've provided the C++ source code, so if that interests you, by all means, go ahead and recompile it for your operating system of choice. You will need to download, compile and link the [OpenCV library](https://opencv.org/releases/) as part of this. You will also need the [Tensorflow C API](https://www.tensorflow.org/install/lang_c) and the [CPPFlow header library](https://github.com/serizba/cppflow).
 
