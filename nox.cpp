@@ -16,6 +16,13 @@ cv::Mat openImage(const std::string& file);
 void printHelp();
 void saveImage(const std::string& file, const cv::Mat image);
 
+// function definitions for temporary stretching of linear data
+void AutoStretch(const cv::Mat input, double autoShadows, double autoBackground, bool linked, std::vector<double>& shadows, std::vector<double>& midtones);
+void TransformHistogram(cv::Mat& image, double redShadows, double redMidtones, double redHighlights, double redLower, double redUpper, double greenShadows, double greenMidtones, double greenHighlights, double greenLower, double greenUpper, double blueShadows, double blueMidtones, double blueHighlights, double blueLower, double blueUpper, cv::Mat mask = cv::Mat());
+double MTF(double x, double s, double m, double h, double lb, double ub);
+double MTFInverse(double y, double x0, double s, double m, double h, double lb, double ub);
+void UntransformHistogram(cv::Mat& image, const cv::Mat& image0, double redShadows, double redMidtones, double redHighlights, double redLower, double redUpper, double greenShadows, double greenMidtones, double greenHighlights, double greenLower, double greenUpper, double blueShadows, double blueMidtones, double blueHighlights, double blueLower, double blueUpper);
+
 int main(int argc, char* argv[])
 {
 	// POSIX command line parameters
@@ -25,9 +32,12 @@ int main(int argc, char* argv[])
 	bool overwrite = false;
 	bool color = false;
 	bool grayscale = false;
+	bool linearData = false;
 	int batch_size = 1;
 	int patch_size = 512;
 	int stride = 128;
+	double autoShadows = -0.75;
+	double autoBackground = 0.1875;
 
     // command line options
 	int c;
@@ -37,20 +47,23 @@ int main(int argc, char* argv[])
 		{
 			{"batch", required_argument, 0, 'b'},
 			{"color", no_argument, 0, 'c'},
+			{"shadows", required_argument, 0, 'd'},
 			{"file", required_argument, 0, 'f'},
 			{"grayscale", no_argument, 0, 'g'},
 			{"help", no_argument, 0, 'h'},
+			{"linear", no_argument, 0, 'l'},
 			{"output", required_argument, 0, 'o'},
 			{"patch", required_argument, 0, 'p'},
 			{"replace", no_argument, 0, 'r'},
 			{"stride", required_argument, 0, 's'},
+			{"target", required_argument, 0, 't'},
 			{"version", no_argument, 0, 'v'},
 			{"weights", required_argument, 0, 'w'},
 			{0, 0, 0, 0}
 		};
 
 		int option_index = 0; // stores option index
-		c = getopt_long(argc, argv, "b:cf:gho:p:rs:vw:", long_options, &option_index);
+		c = getopt_long(argc, argv, "b:cd:f:ghlo:p:rs:t:vw:", long_options, &option_index);
 
 		if (c == -1) break; // end of options
         
@@ -66,6 +79,10 @@ int main(int argc, char* argv[])
 			case 'c':
 				color = true;
 				break;
+				
+			case 'd':
+				autoShadows = atof(optarg);
+				break;
 			
 			case 'f':
 				inputFilename = optarg;
@@ -78,6 +95,10 @@ int main(int argc, char* argv[])
 			case 'h':
 				printHelp();
 				return 0;
+			
+			case 'l':
+				linearData = true;
+				break;
 			
 			case 'o':
 				outputFilename = optarg;
@@ -93,6 +114,10 @@ int main(int argc, char* argv[])
 			
 			case 's':
 				stride = atoi(optarg);
+				break;
+				
+			case 't':
+				autoBackground = atof(optarg);
 				break;
 			
 			case 'v':
@@ -114,7 +139,7 @@ int main(int argc, char* argv[])
     if(inputFilename.length() > 0)
     {
 		std::cout << "Input filename: " << inputFilename << std::endl;
-		std::cout << "Loading input image... ";
+		std::cout << "Loading input image... " << std::flush;
 		inputImage = openImage(inputFilename);
         if(inputImage.empty())
 		{
@@ -170,21 +195,38 @@ int main(int argc, char* argv[])
 	
 	// 4. Prepare input
 	std::cout << "Input image dimensions: " << inputImage.cols << " * " << inputImage.rows << " * " << inputImage.channels() << std::endl;
+	
+	// Color conversions
 	if(inputImage.channels() == 1 && color)
 	{
-		std::cout << "Converting to color... ";
+		std::cout << "Converting to color... " << std::flush;
 		cvtColor(inputImage,inputImage,cv::COLOR_GRAY2BGR);
 		std::cout << "done" << std::endl;
 	}
 	else if(inputImage.channels() == 3 && grayscale)
 	{
-		std::cout << "Converting to grayscale... ";
+		std::cout << "Converting to grayscale... " << std::flush;
 		cvtColor(inputImage,inputImage,cv::COLOR_BGR2GRAY);
 		std::cout << "done" << std::endl;
 	}
+	cv::Mat noxInputImage = inputImage.clone();
+
+	// Apply MTF stretch to linear data
+	std::vector<double> shadows, midtones;
+	if(linearData)
+	{
+		std::cout << "Auto stretching using d = " << autoShadows << " and t = " << autoBackground << "... " << std::flush;;
+		std::cout << "done" << std::endl;
+		AutoStretch(noxInputImage, autoShadows, autoBackground, false, shadows, midtones);
+		std::cout << "Shadows clipping = " << shadows[0] << " (R), " << shadows[1] << " (G), " << shadows[2] << " (B)" << std::endl;
+		std::cout << "Midtones = " << midtones[0] << " (R), " << midtones[1] << " (G), " << midtones[2] << " (B)" << std::endl;
+		TransformHistogram(noxInputImage, shadows[0], midtones[0], 1., 0., 1., shadows[1], midtones[1], 1., 0., 1., shadows[2], midtones[2], 1., 0., 1.);
+	}
+
+	// Transform to -1 to +1 range
 	cv::Scalar iden(1., 1., 1.);
-	if(inputImage.channels() == 1) iden = cv::Scalar(1.);
-	inputImage = inputImage*2. - iden;
+	if(noxInputImage.channels() == 1) iden = cv::Scalar(1.);
+	noxInputImage = noxInputImage*2. - iden;
 	
 	// 5. Process input
 	cv::Mat out = cv::Mat::zeros(inputImage.size(), inputImage.type()); // to hold output
@@ -197,7 +239,7 @@ int main(int argc, char* argv[])
 		int done_den;
 		bool complete = false;
 		std::cout << "Batch size: " << batch_size << std::endl;
-		std::thread run([&](){TFmodelInference(done_num, done_den, complete, inputImage, out, weightsFilename, patch_size, crop, batch_size);});
+		std::thread run([&](){TFmodelInference(done_num, done_den, complete, noxInputImage, out, weightsFilename, patch_size, crop, batch_size);});
 		while(!complete)
 		{
 			if(done_den > 0) std::cout << "\rProcessing... " << int(ceil(100.*done_num/done_den)) << "% (press CTRL+C to stop)" << std::flush;
@@ -216,7 +258,13 @@ int main(int argc, char* argv[])
 		return 1;
 	}
 	
-	// 6. Save image
+	// 6. Reverse MTF stretch
+	if(linearData)
+	{
+		UntransformHistogram(out, inputImage, shadows[0], midtones[0], 1., 0., 1., shadows[1], midtones[1], 1., 0., 1., shadows[2], midtones[2], 1., 0., 1.);
+	}
+	
+	// 7. Save image
 	out.convertTo(out, CV_16U, 65536.0); // Convert 32-bit to 16-bit before saving
 	saveImage(outputFilename, out);
 	
@@ -281,22 +329,9 @@ void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 		if(finalRow) break;
 		else fromRow += (dim - 2*crop);
 	}
-	done_den = patches.size();
 	
 	// Inference
-	cppflow::model* model = NULL;
-	if(cv::utils::fs::exists(weights))
-	{
-		try
-		{
-			model = new cppflow::model(weights, cppflow::model::FROZEN_GRAPH);
-		}
-		catch (cv::Exception& e)
-		{
-			std::cerr << e.msg << std::endl;
-			return;
-		}
-	}
+	cppflow::model model(weights, cppflow::model::FROZEN_GRAPH);
 	std::vector<cv::Mat> inferred_patches(patches.size());
 	auto f = [&](unsigned int from, unsigned int num) // lambda expression to process a group of patches in thread
 	{
@@ -313,7 +348,7 @@ void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 			if(current_batch_size == batch_size || i == patches.size() - 1 || i == from + num - 1) // when batch is filled (or have run out of patches)...
 			{
 				auto batchTensor = cppflow::tensor(batch, {current_batch_size, patches[i].rows, patches[i].cols, patches[i].channels()}); // ...put images in tensor
-				auto outputTensor = ((*model)({{"inputs:0", batchTensor}}, {{"Identity:0"}}))[0]; // and infer batch
+				auto outputTensor = (model({{"inputs:0", batchTensor}}, {{"Identity:0"}}))[0]; // and infer batch
 				std::vector<float> outputVector = outputTensor.get_data<float>();
 				
 				// store inferred patches in corresponding place in vector
@@ -343,6 +378,7 @@ void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 	unsigned int batches_per_thread = ceil(1.*num_batches/num_threads);
 	std::cout << "Batches per thread: " << batches_per_thread << std::endl;
 	unsigned int patches_per_thread = batches_per_thread*batch_size;
+	done_den = patches_per_thread*num_threads;
 	
 	std::vector<std::thread> threads;
 	for(unsigned int i = 0; i < num_threads; i++)
@@ -360,7 +396,6 @@ void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 		}
 	}
 	for(auto& i:threads) i.join();
-	if(model != NULL) delete model;
 	
 	// Reassemble image
 	fromRow = 0; // row pixel index
@@ -449,7 +484,6 @@ void CVmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 		if(finalRow) break;
 		else fromRow += (dim - 2*crop);
 	}
-	done_den = patches.size();
 	
 	// Inference
 	std::vector<cv::Mat> inferred_patches(patches.size());
@@ -510,6 +544,7 @@ void CVmodelInference(int& done_num, int& done_den, bool& complete, const cv::Ma
 	unsigned int batches_per_thread = ceil(1.*num_batches/num_threads);
 	std::cout << "Batches per thread: " << batches_per_thread << std::endl;
 	unsigned int patches_per_thread = batches_per_thread*batch_size;
+	done_den = patches_per_thread*num_threads;
 	
 	std::vector<std::thread> threads;
 	for(unsigned int i = 0; i < num_threads; i++)
@@ -587,12 +622,19 @@ void printHelp()
 		"  -c,  --color     use color weights (grayscale input will be duplicated as RGB\n"
 		"                   channels; RGB output will be converted to grayscale)\n");
 	printf(
+		"  -d,  --shadows   number of standard deviations relative to the median pixel\n"
+		"                   value for shadows clipping in temporary midtones transfer\n"
+		"                   function stretch (default: -0.75)\n");
+	printf(
 		"  -f,  --file      filename of input starry image\n");
 	printf(
 		"  -g,  --grayscale   use grayscale weights (color input will be converted to\n"
 		"                   grayscale; output will be grayscale\n");
 	printf(
 		"  -h,  --help      print this help information\n");
+	printf(
+		"  -l,  --linear    automatically apply temporary midtones transfer function\n"
+		"                   stretch to linear data (default: off)\n");
 	printf(
 		"  -o,  --output    filename of output starless image (otherwise '_nox' will be\n"
 		"                   appended\n\n");
@@ -603,6 +645,9 @@ void printHelp()
 		"  -r,  --replace   overwrite if output file already exists (default: false)\n");
 	printf(
 		"  -s,  --stride    distance in pixels between adjacent patches (default: 128)\n");
+	printf(
+		"  -t,  --target    target mean pixel value in temporary midtones transfer\n"
+		"                   function stretch (default: 0.1875)\n");
 	printf(
 		"  -v,  --version   about nox\n");
 	printf(
@@ -615,4 +660,239 @@ void printHelp()
 void saveImage(const std::string& file, const cv::Mat image)
 {
 	cv::imwrite(file, image);
+}
+
+void AutoStretch(const cv::Mat input, double autoShadows, double autoBackground, bool linked, std::vector<double>& shadows, std::vector<double>& midtones)
+{
+	std::vector<cv::Mat> bgr_planes;
+	cv::split(input, bgr_planes);
+	
+	cv::Mat image; // to trial transformations on
+	if(linked)
+	{
+		bgr_planes.erase(std::remove_if( // remove planes that are completely full of zeros
+			bgr_planes.begin(), bgr_planes.end(),
+			[](const cv::Mat& plane) {
+				return cv::countNonZero(plane) < 1;
+			}), bgr_planes.end());
+		cv::hconcat(bgr_planes, image); // BGR planes need joining together into one channel
+	}
+	else image = input;
+
+	double m0, m1, s; // m1 and s will hold the solved shadows and midtones values after iterating
+	const double eps = 1e-7; // convergence tolerance
+	for(int i = image.channels() - 1; i >= 0; --i)
+	{
+		if(!linked)
+		{
+			image = bgr_planes[i];
+			if(cv::countNonZero(image) < 1) // don't attempt to auto-stretch planes that are completely full of zeros
+			{
+				shadows.push_back(0);
+				midtones.push_back(0.5);
+				continue;
+			}
+		}
+		cv::Scalar mean, stdev;
+		cv::meanStdDev(image, mean, stdev);
+		std::vector<float> vecFromMat;
+		image.reshape(0, 1).copyTo(vecFromMat);
+		std::nth_element(vecFromMat.begin(), vecFromMat.begin() + vecFromMat.size()/2, vecFromMat.end());
+		double median = vecFromMat[vecFromMat.size()/2];
+		s = median + autoShadows*stdev[0];
+		if(s <= 0) s = 0;
+		m0 = s + 1e-7; m1 = 1.0 - 1e-7; // range of values
+
+		// Use Dekker's method to find midtones value for the given autoBackground
+		// https://en.wikipedia.org/wiki/Brent%27s_method#Dekker's_method
+		cv::Mat im = image.clone();
+		TransformHistogram(im, s, m0, 1.0, 0.0, 1.0, s, m0, 1.0, 0.0, 1.0, s, m0, 1.0, 0.0, 1.0);
+		double fx0 = cv::mean(im)[0] - autoBackground;
+		im = image.clone();
+		TransformHistogram(im, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0);
+		double fx1 = cv::mean(im)[0] - autoBackground;
+		double m2 = m0; // m0 is the previous value of m1 and [m1, m2] always contains 0
+		double fx2 = fx0;
+		while(true)
+		{
+			if((fx1 < 0) == (fx2 < 0))
+			{
+				m2 = m0;
+				fx2 = fx0;
+			}
+			if(abs(fx2) < abs(fx1)) // ensure fx1 is the smallest value so far
+			{
+				m0 = m1; fx0 = fx1;
+				m1 = m2; fx1 = fx2;
+				m2 = m0; fx2 = fx0;
+			}
+			double m = (m1 + m2)/2; // midpoint
+			if(abs(m - m1) <= eps) break; // stop iterating
+			double p = (m1 - m0)*fx1; // p/q is the secant step
+			double q;
+			if(p >= 0)
+			{
+				q = fx0 - fx1;
+			}
+			else
+			{
+				q = fx1 - fx0;
+				p = -p;
+			}
+			m0 = m1;
+			fx0 = fx1;
+			if(p <= (m - m1)*q) // secant
+			{
+				m1 = m1 + p/q;
+				im = image.clone();
+				TransformHistogram(im, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0);
+				fx1 = cv::mean(im)[0] - autoBackground;
+				// std::cout << "secant: " << std::to_string(m1) << " " << std::to_string(fx1) << std::endl;
+			}
+			else // bisection
+			{
+				m1 = m;
+				im = image.clone();
+				TransformHistogram(im, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0, s, m1, 1.0, 0.0, 1.0);
+				fx1 = cv::mean(im)[0] - autoBackground;
+				// std::cout << "bisection: " << std::to_string(m1) << " " << std::to_string(fx1) << std::endl;
+			}
+		}
+		if(m1<s || m1 > 1.0) m1 = 0.5;
+		if(!linked)
+		{
+			shadows.push_back(s);
+			midtones.push_back(m1);
+		}
+	}
+	if(linked)
+	{
+		for(int i = 0; i < input.channels(); ++i)
+		{
+			shadows.push_back(s);
+			midtones.push_back(m1);
+		}
+	}
+}
+
+void TransformHistogram(cv::Mat& image, double redShadows, double redMidtones, double redHighlights, double redLower, double redUpper, double greenShadows, double greenMidtones, double greenHighlights, double greenLower, double greenUpper, double blueShadows, double blueMidtones, double blueHighlights, double blueLower, double blueUpper, cv::Mat mask)
+{
+	int nRows = image.rows;
+	auto f = [&](int i0, int nRows) // define a lambda expression to loop through nRows starting at row i
+	{
+		int nCols = image.cols*image.channels();
+		for(int i = i0; i < i0 + nRows; ++i)
+		{
+			float* p = image.ptr<float>(i);
+			float* pm = NULL;
+			if(!mask.empty()) pm = mask.ptr<float>(i);
+			for(int j = 0; j < nCols; j += image.channels())
+			{
+				if(image.channels() == 1)
+				{
+					if(pm != NULL) p[j] = p[j] + pm[j]*(MTF(p[j], redShadows, redMidtones, redHighlights, redLower, redUpper) - p[j]);
+					else p[j] = MTF(p[j], redShadows, redMidtones, redHighlights, redLower, redUpper);
+				}
+				else
+				{
+					if(pm != NULL)
+					{
+						float maskval = pm[j/3];
+						if(maskval < 0.) maskval = 0.;
+						else if(maskval > 1.) maskval = 1.;
+						p[j] = p[j] + maskval*(MTF(p[j], blueShadows, blueMidtones, blueHighlights, blueLower, blueUpper) - p[j]);
+						p[j + 1] = p[j + 1] + maskval*(MTF(p[j + 1], greenShadows, greenMidtones, greenHighlights, greenLower, greenUpper) - p[j + 1]);
+						p[j + 2] = p[j + 2] + maskval*(MTF(p[j + 2], redShadows, redMidtones, redHighlights, redLower, redUpper) - p[j + 2]);
+					}
+					else
+					{
+						p[j] = MTF(p[j], blueShadows, blueMidtones, blueHighlights, blueLower, blueUpper);
+						p[j + 1] = MTF(p[j + 1], greenShadows, greenMidtones, greenHighlights, greenLower, greenUpper);
+						p[j + 2] = MTF(p[j + 2], redShadows, redMidtones, redHighlights, redLower, redUpper);
+					}
+				}
+			}
+		}
+	};
+	unsigned int num_threads = std::thread::hardware_concurrency();
+	if(num_threads == 0) num_threads = 1;
+	unsigned int rows_per_thread = nRows/num_threads;
+	std::vector<std::thread> threads;
+	for(unsigned int i = 0; i < num_threads; i++)
+	{
+		std::thread th(f, rows_per_thread*i, (i == num_threads - 1 ? nRows - rows_per_thread*i : rows_per_thread));
+		threads.push_back(std::move(th));
+	}
+	for(auto& i : threads) i.join();
+	image = cv::min(cv::max(image, 0.), 1.);
+}
+
+double MTF(double x, double s, double m, double h, double lb, double ub)
+{
+	double y;
+	if(x < s) y = 0.0; // shadows clipping
+	else if(x > h) y = 1.0; // highlights clipping
+	else
+	{
+		x = (x - s)/(h - s); // rescale x coordinate after clipping
+		m = (m - s)/(h - s); // rescale m after clipping
+		y = (m - 1.0)*x/((2.0*m - 1.0)*x - m); // MTF
+	}
+	y = (y - lb)/(ub - lb); // bounds expansion
+	
+	return y;
+}
+
+double MTFInverse(double y, double x0, double s, double m, double h, double lb, double ub)
+{
+    double x;
+    y = y*(ub - lb) + lb; // undo bounds expansion
+    if(y <= 0.0) x = x0; // shadows clipped
+    else if(y >= 1.0) x = x0; // highlights clipped
+	else
+	{
+		m = (m - s)/(h - s);
+		x = m*y/(2.0*m*y - m - y + 1.0);
+		x = x*(h - s) + s; // rescale x after clipping
+	}
+
+    return x;
+}
+
+void UntransformHistogram(cv::Mat& image, const cv::Mat& image0, double redShadows, double redMidtones, double redHighlights, double redLower, double redUpper, double greenShadows, double greenMidtones, double greenHighlights, double greenLower, double greenUpper, double blueShadows, double blueMidtones, double blueHighlights, double blueLower, double blueUpper)
+{
+	int nRows = image.rows;
+	auto f = [&](int i0, int nRows) // define a lambda expression to loop through nRows starting at row i
+	{
+		int nCols = image.cols*image.channels();
+		for(int i = i0; i < i0 + nRows; ++i)
+		{
+			float* p = image.ptr<float>(i);
+			const float* p0 = image0.ptr<float>(i); // same pixel in original image (used in MTFInverse to restore original pixel value in case of clipping)
+			for(int j = 0; j < nCols; j += image.channels())
+			{
+				if(image.channels() == 1)
+				{
+					p[j] = MTFInverse(p[j], p0[j], redShadows, redMidtones, redHighlights, redLower, redUpper);
+				}
+				else
+				{
+					p[j] = MTFInverse(p[j], p0[j], blueShadows, blueMidtones, blueHighlights, blueLower, blueUpper);
+					p[j + 1] = MTFInverse(p[j + 1], p0[j + 1], greenShadows, greenMidtones, greenHighlights, greenLower, greenUpper);
+					p[j + 2] = MTFInverse(p[j + 2], p0[j + 2], redShadows, redMidtones, redHighlights, redLower, redUpper);
+				}
+			}
+		}
+	};
+	unsigned int num_threads = std::thread::hardware_concurrency();
+	if(num_threads == 0) num_threads = 1;
+	unsigned int rows_per_thread = nRows/num_threads;
+	std::vector<std::thread> threads;
+	for(unsigned int i = 0; i < num_threads; i++)
+	{
+		std::thread th(f, rows_per_thread*i, (i == num_threads - 1 ? nRows - rows_per_thread*i : rows_per_thread));
+		threads.push_back(std::move(th));
+	}
+	for(auto& i : threads) i.join();
+	image = cv::min(cv::max(image, 0.), 1.);
 }
