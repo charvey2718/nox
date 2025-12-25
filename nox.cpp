@@ -34,6 +34,7 @@ int main(int argc, char* argv[])
 	bool grayscale = false;
 	bool linearData = false;
 	int batch_size = 1;
+	int bit_depth = 16;
 	int patch_size = 512;
 	int stride = 128;
 	double autoShadows = -0.75;
@@ -46,6 +47,7 @@ int main(int argc, char* argv[])
 		static struct option long_options[] =
 		{
 			{"batch", required_argument, 0, 'b'},
+			{"bitdepth", required_argument, 0, 'B'},
 			{"color", no_argument, 0, 'c'},
 			{"shadows", required_argument, 0, 'd'},
 			{"file", required_argument, 0, 'f'},
@@ -63,7 +65,7 @@ int main(int argc, char* argv[])
 		};
 
 		int option_index = 0; // stores option index
-		c = getopt_long(argc, argv, "b:cd:f:ghlo:p:rs:t:vw:", long_options, &option_index);
+		c = getopt_long(argc, argv, "b:B:cd:f:ghlo:p:rs:t:vw:", long_options, &option_index);
 
 		if (c == -1) break; // end of options
         
@@ -74,6 +76,17 @@ int main(int argc, char* argv[])
 			
 			case 'b':
 				batch_size = atoi(optarg);
+				break;
+
+			case 'B':
+				bit_depth = atoi(optarg);
+
+				if(bit_depth != 16 && bit_depth != 32 && bit_depth != 64)
+				{
+					std::cerr << "Error: Invalid bit depth '" << bit_depth << "'. Allowed values are 16, 32, or 64." << std::endl;
+					printHelp();
+					return 1;
+				}
 				break;
 				
 			case 'c':
@@ -265,7 +278,24 @@ int main(int argc, char* argv[])
 	}
 	
 	// 7. Save image
-	out.convertTo(out, CV_16U, 65536.0); // Convert 32-bit to 16-bit before saving
+	switch (bit_depth)
+	{
+		case 16:
+			// 16-bit unsigned integer (default)
+			out.convertTo(out, CV_16U, 65535.0);
+			break;
+
+		case 32:
+			// 32-bit floating point
+			out.convertTo(out, CV_32F);
+			break;
+
+		case 64:
+			// 64-bit floating point
+			out.convertTo(out, CV_64F);
+			break;
+	}
+
 	saveImage(outputFilename, out);
 	
     return 0;
@@ -273,8 +303,8 @@ int main(int argc, char* argv[])
 
 void about()
 {
-	std::cout << "nox version 1.0" << std::endl;
-	std::cout << "(c) by Christopher M. Harvey 2023" << std::endl << std::endl;
+	std::cout << "nox version 1.1" << std::endl;
+	std::cout << "(c) by Christopher M. Harvey 2025" << std::endl << std::endl;
 }
 
 void TFmodelInference(int& done_num, int& done_den, bool& complete, const cv::Mat& src, cv::Mat& dst, std::string weights, int dim, int crop, unsigned int batch_size)
@@ -618,6 +648,9 @@ void printHelp()
 	printf("nox usage:\n");
 	printf(
 		"  -b,  --batch     number of patches to infer simultaneously (default: 1)\n");
+	printf(
+		"  -B,  --bitdepth  output bit depth: 16 | 32 | 64\n"
+        "                   16 = uint16 (default), 32 = float32, 64 = float64\n");
 	printf(
 		"  -c,  --color     use color weights (grayscale input will be duplicated as RGB\n"
 		"                   channels; RGB output will be converted to grayscale)\n");
